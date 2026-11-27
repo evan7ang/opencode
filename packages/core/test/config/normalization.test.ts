@@ -117,6 +117,20 @@ describe("ConfigNormalize", () => {
     expect(Duration.toMillis(info.warming.duration ?? Duration.zero)).toBe(1_800_000)
   })
 
+  test("normalizes agent hint settings", () => {
+    const result = normalized({
+      agent_hint: { providers: ["gateway"], control: "https://gateway.test/v1/chat/completions" },
+    })
+    expect(result.encoded.agent_hint).toEqual({
+      providers: ["gateway"],
+      control: "https://gateway.test/v1/chat/completions",
+    })
+    const info = Schema.decodeUnknownSync(Info)(result.encoded)
+    if (typeof info.agent_hint === "boolean" || info.agent_hint === undefined)
+      throw new Error("expected agent hint info")
+    expect(info.agent_hint.providers).toEqual(["gateway"])
+  })
+
   test("preserves arbitrary JSON-round-tripped native configuration", () => {
     const result = Effect.runSync(
       Arbitrary.checkEffect(
