@@ -197,6 +197,33 @@ describe("SessionModelTransport", () => {
     )
   })
 
+  test("reuses the connection when only a volatile handshake header changes", async () => {
+    const fixture = automatic()
+    const hints = ["one", "two", "three"]
+    await run(
+      fixture.connector,
+      Effect.gen(function* () {
+        const transport = yield* SessionModelTransport.Service
+        const executor = transport.bind(session, {
+          handshake: (connect) =>
+            Effect.succeed({
+              url: connect.url,
+              headers: { ...connect.headers, "x-agent-hint": hints.shift()! },
+              volatileHeaders: ["X-Agent-Hint"],
+            }),
+        })
+        yield* collect(executor, exchange("first", { headers: { "api-key": "k" } }))
+        yield* collect(executor, exchange("second", { headers: { "api-key": "k" } }))
+        yield* collect(executor, exchange("third", { headers: { "api-key": "k" } }))
+
+        // A per-request hint leaves the affinity key alone, so one socket carries every call.
+        expect(fixture.connections).toHaveLength(1)
+        expect(fixture.connections[0]?.headers["x-agent-hint"]).toBe("one")
+        expect(fixture.connections.map((item) => item.sent)).toEqual([["first", "second", "third"]])
+      }),
+    )
+  })
+
   test("sends the frame the send tap returns and observes the frame the receive tap returns", async () => {
     const fixture = automatic()
     const seen: Array<{ tap: "send" | "receive"; frame: string }> = []

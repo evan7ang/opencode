@@ -412,7 +412,13 @@ export const layer = Layer.effect(
                       url: connect.url,
                       headers: connect.headers,
                     })
-                    .pipe(Effect.map((event) => ({ url: event.url, headers: event.headers }))),
+                    .pipe(
+                      Effect.map((event) => ({
+                        url: event.url,
+                        headers: event.headers,
+                        ...(event.volatileHeaders === undefined ? {} : { volatileHeaders: event.volatileHeaders }),
+                      })),
+                    ),
                 send: (frame) =>
                   hooks
                     .trigger("session", "experimental.ws.send", { ...scope, frame })

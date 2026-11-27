@@ -118,6 +118,12 @@ export interface SessionWebSocketHandshake {
   readonly kind: SessionRequestKind
   url: string
   headers: Record<string, string>
+  /**
+   * Header names left out of the connection's affinity key. A header that changes per request
+   * (a hint, a nonce) still travels on the handshake, but changing its value reuses the open
+   * socket instead of reconnecting. Experimental.
+   */
+  volatileHeaders?: string[]
 }
 
 /**

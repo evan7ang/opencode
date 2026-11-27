@@ -203,6 +203,8 @@ describe("SessionModelRequest HTTP hooks", () => {
         Effect.sync(() => {
           seen.push(`handshake:${event.kind}:${event.url}`)
           event.headers.authorization = "Bearer minted"
+          event.headers["x-agent-hint"] = "per-request"
+          event.volatileHeaders = ["x-agent-hint"]
           delete event.headers["api-key"]
         }),
       )
@@ -218,7 +220,11 @@ describe("SessionModelRequest HTTP hooks", () => {
           event.frame = event.frame.toUpperCase()
         }),
       )
-      const bound: Array<{ url: string; headers: Record<string, string> }> = []
+      const bound: Array<{
+        url: string
+        headers: Record<string, string>
+        volatileHeaders?: readonly string[]
+      }> = []
       const frames: string[] = []
       const websocketTransport = SessionModelTransport.Service.of({
         bind: (_sessionID, interceptor) => ({
@@ -258,7 +264,13 @@ describe("SessionModelRequest HTTP hooks", () => {
       expect(prepared.options.http).toBeDefined()
       expect(prepared.options.webSocket).toBeDefined()
       yield* prepared.options.webSocket!.execute({} as never)
-      expect(bound).toEqual([{ url: "wss://example.test/v1/responses", headers: { authorization: "Bearer minted" } }])
+      expect(bound).toEqual([
+        {
+          url: "wss://example.test/v1/responses",
+          headers: { authorization: "Bearer minted", "x-agent-hint": "per-request" },
+          volatileHeaders: ["x-agent-hint"],
+        },
+      ])
       expect(frames).toEqual(["create+plugin", "CREATED"])
       expect(seen).toEqual([
         "handshake:primary:wss://example.test/v1/responses",

@@ -60,6 +60,12 @@ interface State {
 export interface Handshake {
   readonly url: string
   readonly headers: Record<string, string>
+  /**
+   * Header names left out of the affinity key. A header that changes per request (a hint, a nonce)
+   * still travels on the handshake, but changing its value reuses the open socket instead of
+   * reconnecting.
+   */
+  readonly volatileHeaders?: readonly string[]
 }
 
 /**
@@ -113,8 +119,13 @@ const annotate = (
   })
 }
 
-const affinity = (exchange: WebSocketChannelExchange) =>
-  `${exchange.connect.url}:${Hash.sha256(JSON.stringify(Object.entries(exchange.connect.headers).sort(([a], [b]) => a.localeCompare(b))))}`
+const affinity = (exchange: WebSocketChannelExchange, volatileHeaders?: readonly string[]) => {
+  const volatile = new Set((volatileHeaders ?? []).map((name) => name.toLowerCase()))
+  const stable = Object.entries(exchange.connect.headers)
+    .filter(([name]) => !volatile.has(name.toLowerCase()))
+    .sort(([a], [b]) => a.localeCompare(b))
+  return `${exchange.connect.url}:${Hash.sha256(JSON.stringify(stable))}`
+}
 
 const observationFrame = (observation: ChannelObservation) => {
   if (observation.type === "frame" || observation.type === "completed" || observation.type === "incomplete")
@@ -312,7 +323,7 @@ export const makeLayer = (connector: WebSocketConnector) =>
         const exchange: WebSocketChannelExchange = selected
           ? { ...input, connect: { ...input.connect, url: selected.url, headers: Headers.fromInput(selected.headers) } }
           : input
-        const key = affinity(exchange)
+        const key = affinity(exchange, selected?.volatileHeaders)
         const now = yield* Clock.currentTimeMillis
         const current = owner.channel
         const rotateAfterMs = exchange.connect.rotateAfterMs ?? ROTATE_AFTER_MS
